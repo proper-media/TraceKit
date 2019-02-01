@@ -196,7 +196,7 @@ TraceKit.report = (function reportModuleWrapper() {
 
         if (lastExceptionStack) {
             TraceKit.computeStackTrace.augmentStackTraceWithInitialElement(lastExceptionStack, url, lineNo, message);
-    	    processLastException();
+            processLastException();
         } else if (errorObj) {
             stack = TraceKit.computeStackTrace(errorObj);
             notifyHandlers(stack, true, errorObj);
@@ -293,7 +293,7 @@ TraceKit.report = (function reportModuleWrapper() {
      */
     function uninstallGlobalUnhandledRejectionHandler() {
         if (_onUnhandledRejectionHandlerInstalled) {
-            window.onunhandledrejection = _oldOnunhandledrejectionHandler;
+            window.onerror = _oldOnunhandledrejectionHandler;
             _onUnhandledRejectionHandlerInstalled = false;
         }
     }
@@ -1200,6 +1200,9 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
             // property first!!
             stack = computeStackTraceFromStacktraceProp(ex);
             if (stack) {
+                if(_has(ex, 'bidder')) {
+                   stack.bidder = ex.bidder;
+                }
                 return stack;
             }
         } catch (e) {
@@ -1211,6 +1214,9 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
         try {
             stack = computeStackTraceFromStackProp(ex);
             if (stack) {
+                if(_has(ex, 'bidder')) {
+                   stack.bidder = ex.bidder;
+                }
                 return stack;
             }
         } catch (e) {
@@ -1222,6 +1228,9 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
         try {
             stack = computeStackTraceFromOperaMultiLineMessage(ex);
             if (stack) {
+                if(_has(ex, 'bidder')) {
+                   stack.bidder = ex.bidder;
+                }
                 return stack;
             }
         } catch (e) {
@@ -1233,6 +1242,9 @@ TraceKit.computeStackTrace = (function computeStackTraceWrapper() {
         try {
             stack = computeStackTraceByWalkingCallerChain(ex, depth + 1);
             if (stack) {
+                if(_has(ex, 'bidder')) {
+                   stack.bidder = ex.bidder;
+                }
                 return stack;
             }
         } catch (e) {
@@ -1325,3 +1337,95 @@ if (typeof define === 'function' && define.amd) {
 }
 
 }(typeof window !== 'undefined' ? window : global));
+
+/**
+ * Default function to track errors to Proper Medias back end.
+ * Function gets overwritten by sendError(error) in the ad_project
+ * file.
+ * @param error
+ */
+TraceKit.defaultSendError = function(error) {
+    'use strict';
+    try {
+        if (!error.stack) {
+            error.stack = (new Error('force-added stack')).stack;
+            if (error.stack) {
+                error.stack = error.stack.toString();
+            }
+        }
+        if(!error.name) {
+            error.name = 'Unknown';
+        }
+        if(!error.message) {
+            error.message = 'Unknown';
+        }
+
+    } catch (e) {
+        console.error("Error building error data");
+        console.error(e);
+    }
+
+    try {
+
+        var postData = {
+            'client_timestamp' : new Date().getTime(),
+            'event_id'         : '',
+            'page_id'          : '',
+            'session_id'       : '',
+            'bidder'           : '',
+            'user_id'          : '',
+            'publisher'        : '',
+            'rtp_file_version' : '',
+            'ad_project_tag'   : '',
+            'page_url'         : window.top.location.href || window.location.href || '',
+            'in_iframe'        : false,
+            'is_https'         : ('https:' == document.location.protocol) ? true : false,
+            'user_agent'       : navigator.userAgent || '',
+            'stack_trace'      : JSON.stringify(error.stack),
+            'error_message'    : error.message.toString(),
+            'error_name'       : error.name.toString()
+        }
+
+        // Must encode data
+        if(postData && typeof(postData) === 'object') {
+            var y = '', z = encodeURIComponent;
+            for (var x in postData) {
+               y += '&' + z(x) + '=' + z(postData[x]);
+            }
+            postData = y.slice(1);
+        }
+
+        //send ajax request
+        var xhr = null; //new (this.XMLHttpRequest || ActiveXObject)('MSXML2.XMLHTTP.3.0');
+        if(window.ActiveXObject) {
+            xhr = new ActiveXObject('Microsoft.XMLHTTP');
+        } else if(window.XMLHttpRequest) {
+            xhr = new XMLHttpRequest();
+        }
+
+        // URL to send data to
+        var request_url = 'https://events.proper.io/api/event';
+
+        xhr.open("POST", request_url, 1);
+        xhr.withCredentials = true;
+
+        xhr.timeout = 2000; // time in milliseconds
+
+        xhr.onload = function() {
+            if(xhr.status == 200) {
+                // callback(xhr.responseText, xhr);
+            } else {
+                console.error("Error sending exception data. xhr.status: " + xhr.status);
+            }
+        }
+
+        xhr.send(postData);
+
+    } catch (e) {
+        console.error("Error sending exception data");
+        console.error(e);
+    }
+
+}
+
+TraceKit.report.subscribe(TraceKit.defaultSendError);
