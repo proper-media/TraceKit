@@ -1317,10 +1317,10 @@ TraceKit.extendToAsynchronousCallbacks = function () {
 
 //Default options:
 if (!TraceKit.remoteFetching) {
-    TraceKit.remoteFetching = true;
+    TraceKit.remoteFetching = false;
 }
 if (!TraceKit.collectWindowErrors) {
-    TraceKit.collectWindowErrors = true;
+    TraceKit.collectWindowErrors = false;
 }
 if (!TraceKit.linesOfContext || TraceKit.linesOfContext < 1) {
     // 5 lines before, the offending line, 5 lines after
@@ -1407,7 +1407,7 @@ TraceKit.defaultSendError = function(error) {
         var request_url = 'https://events.proper.io/api/event';
 
         xhr.open("POST", request_url, 1);
-        xhr.withCredentials = true;
+        xhr.withCredentials = false;
 
         xhr.timeout = 2000; // time in milliseconds
 
